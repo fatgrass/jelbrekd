@@ -23,6 +23,7 @@
 #include "offsets.h"
 #include "KUtils.h"
 #include "libproc.h"
+#include "kern_exec.h"
 
 mach_port_t tfp0;
 uint64_t kernel_base;
@@ -125,6 +126,7 @@ int main(int argc, const char *argv[])
 {
     logMe("Starting...");
     
+    logMe("Initializing Offsets...");
     offs_init();
     
     unlink("/var/run/jelbrekd.pid");
@@ -140,6 +142,7 @@ int main(int argc, const char *argv[])
     NSString *kernelSlide = [NSString stringWithFormat:@"Got KernelSlide At: 0x%llx", kernel_slide];
     const char *kSlide = [kernelSlide cStringUsingEncoding:NSASCIIStringEncoding];
     
+    logMe("Getting tfp0...");
     kern_return_t err = host_get_special_port(mach_host_self(), HOST_LOCAL_NODE, 4, &tfp0);
     if (err != KERN_SUCCESS) {
         fprintf(stderr,"host_get_special_port 4: %s\n", mach_error_string(err));
@@ -150,6 +153,9 @@ int main(int argc, const char *argv[])
     
     NSString *tfpZero = [NSString stringWithFormat:@"Got TFP0 At: %u", tfp0];
     const char *tfpZ = [tfpZero cStringUsingEncoding:NSASCIIStringEncoding];
+    
+    logMe("Initializing Kexecute...");
+    init_kexecute();
     
     logMe(kBase);
     logMe(kSlide);
@@ -170,8 +176,7 @@ int main(int argc, const char *argv[])
         });
         dispatch_resume(server);
         
-        fprintf(stderr,"it never fails to strike its target, and the wounds it causes do not heal\n");
-        fprintf(stderr,"in other words, MIG is online\n");
+        logMe("MIG Is Online!");
         
         int fd = open("/var/run/jelbrekd.pid", O_WRONLY | O_CREAT, 0600);
         char mmmm[8] = {0};
@@ -179,7 +184,7 @@ int main(int argc, const char *argv[])
         write(fd, mmmm, sz);
         close(fd);
         
-        fprintf(stderr,"jailbreakd: dumped pid\n");
+        logMe("Dumped pid");
         
         dispatch_main();
         
