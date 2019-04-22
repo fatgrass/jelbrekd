@@ -41,7 +41,7 @@ uint64_t kernel_base;
 #define JAILBREAKD_COMMAND_ENTITLE_AND_SIGCONT 2
 #define JAILBREAKD_COMMAND_ENTITLE_AND_SIGCONT_FROM_XPCPROXY 3
 #define JAILBREAKD_COMMAND_FIXUP_SETUID 4
-
+#define JAILBREAKD_COMMAND_UNSANDBOX 5
 
 
 typedef boolean_t (*dispatch_mig_callback_t)(mach_msg_header_t *message, mach_msg_header_t *reply);
@@ -53,7 +53,8 @@ int is_valid_command(uint8_t command) {
     return (command == JAILBREAKD_COMMAND_ENTITLE ||
             command == JAILBREAKD_COMMAND_ENTITLE_AND_SIGCONT ||
             command == JAILBREAKD_COMMAND_ENTITLE_AND_SIGCONT_FROM_XPCPROXY ||
-            command == JAILBREAKD_COMMAND_FIXUP_SETUID);
+            command == JAILBREAKD_COMMAND_FIXUP_SETUID ||
+            command == JAILBREAKD_COMMAND_UNSANDBOX);
 }
 
 
@@ -103,6 +104,13 @@ int handle_command(uint8_t command, uint32_t pid) {
         fprintf(stderr,"JAILBREAKD_FIXUP_SETUID PID: %d\n", pid);
         fixupsetuid(pid);
     }
+    
+    if (command == JAILBREAKD_COMMAND_UNSANDBOX)
+    {
+        fprintf(stderr, "JAILBREAKD_UNSANDBOX PID:%d\n", pid);
+        
+    }
+    
     return 0;
 }
 

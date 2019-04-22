@@ -429,3 +429,19 @@ void fixupsetuid(int pid) {
         return;
     }
 }
+
+int unsandbox(int pid) {
+    uint64_t proc = proc_find(pid, 3);
+    uint64_t proc_ucred = rk64(proc + off_p_ucred);
+    uint64_t sandbox = rk64(rk64(proc_ucred+0x78) + 8 + 8);
+    if (sandbox == 0) {
+        fprintf(stderr, "[jelbrekd] ALREADY UNSANDBOX!\n");
+        return 0;
+    } else {
+        fprintf(stderr, "[jelbrekd] Unsandboxing PID:%d\n", pid);
+        wk64(rk64(proc_ucred+0x78) + 8 + 8, 0);
+        sandbox = rk64(rk64(proc_ucred+0x78) + 8 + 8);
+        if (sandbox == 0) return 0;
+    }
+    return -1;
+}
