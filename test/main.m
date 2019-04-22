@@ -165,7 +165,7 @@ int main(int argc, const char *argv[])
     @autoreleasepool {
         mach_port_t port;
         
-        if ((err = bootstrap_check_in(bootstrap_port, "org.coolstar.jailbreakd", &port))) {
+        if ((err = bootstrap_check_in(bootstrap_port, "space.tw3lve.jelbrekd", &port))) {
             fprintf(stderr,"Failed to check in: %s\n", mach_error_string(err));
             return -1;
         }

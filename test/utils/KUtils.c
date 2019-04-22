@@ -27,6 +27,7 @@
 #include "osobject.h"
 #include "sandbox.h"
 #include "libproc.h"
+#include "allproc_holder.h"
 
 uint64_t cached_task_self_addr = 0;
 bool found_offs = false;
@@ -46,6 +47,23 @@ uint64_t get_proc_struct_for_pid(pid_t pid)
     return 0;
 }
 
+uint64_t proc_find(int pd, int tries) {
+    // TODO use kcall(proc_find) + ZM_FIX_ADDR
+    while (tries-- > 0) {
+        uint64_t proc = rk64(get_allproc());
+        while (proc) {
+            uint32_t pid = rk32(proc + off_p_pid);
+            if (pid == pd) {
+                return proc;
+            }
+            proc = rk64(proc);
+        }
+    }
+    return 0;
+}
+
+
+
 
 uint64_t get_address_of_port(pid_t pid, mach_port_t port)
 {
@@ -64,7 +82,7 @@ uint64_t task_self_addr()
 {
     if (cached_task_self_addr == 0) {
         cached_task_self_addr = have_kmem_read() && found_offs ? get_address_of_port(getpid(), mach_task_self()) : find_port_address(mach_task_self(), MACH_MSG_TYPE_COPY_SEND);
-        fprintf(stderr, "task self: 0x%llx", cached_task_self_addr);
+        fprintf(stderr, "task self: 0x%llx\n", cached_task_self_addr);
     }
     return cached_task_self_addr;
 }
@@ -132,20 +150,20 @@ uint64_t zm_fix_addr(uint64_t addr) {
     if (zm_hdr.start == 0) {
         // xxx ReadKernel64(0) ?!
         // uint64_t zone_map_ref = find_zone_map_ref();
-        fprintf(stderr, "zone_map_ref: %llx ", get_zone_map_ref());
+        fprintf(stderr, "zone_map_ref: %llx \n", get_zone_map_ref());
         uint64_t zone_map = ReadKernel64(get_zone_map_ref());
-        fprintf(stderr, "zone_map: %llx ", zone_map);
+        fprintf(stderr, "zone_map: %llx \n", zone_map);
         // hdr is at offset 0x10, mutexes at start
         size_t r = kreadOwO(zone_map + 0x10, &zm_hdr, sizeof(zm_hdr));
-        fprintf(stderr, "zm_range: 0x%llx - 0x%llx (read 0x%zx, exp 0x%zx)", zm_hdr.start, zm_hdr.end, r, sizeof(zm_hdr));
+        fprintf(stderr, "zm_range: 0x%llx - 0x%llx (read 0x%zx, exp 0x%zx)\n", zm_hdr.start, zm_hdr.end, r, sizeof(zm_hdr));
         
         if (r != sizeof(zm_hdr) || zm_hdr.start == 0 || zm_hdr.end == 0) {
-            fprintf(stderr, "kread of zone_map failed!");
+            fprintf(stderr, "kread of zone_map failed!\n");
             exit(EXIT_FAILURE);
         }
         
         if (zm_hdr.end - zm_hdr.start > 0x100000000) {
-            fprintf(stderr, "zone_map is too big, sorry.");
+            fprintf(stderr, "zone_map is too big, sorry.\n");
             exit(EXIT_FAILURE);
         }
     }
@@ -192,16 +210,16 @@ uint64_t vnodeForPath(const char *path) {
     uint64_t vnode = 0;
     vfs_context = _vfs_context();
     if (!ISADDR(vfs_context)) {
-        fprintf(stderr, "Failed to get vfs_context.");
+        fprintf(stderr, "Failed to get vfs_context.\n");
         goto out;
     }
     vpp = malloc(sizeof(uint64_t));
     if (vpp == NULL) {
-        fprintf(stderr, "Failed to allocate memory.");
+        fprintf(stderr, "Failed to allocate memory.\n");
         goto out;
     }
     if (_vnode_lookup(path, O_RDONLY, vpp, vfs_context) != ERR_SUCCESS) {
-        fprintf(stderr, "Failed to get vnode at path \"%s\".", path);
+        fprintf(stderr, "Failed to get vnode at path \"%s\".\n", path);
         goto out;
     }
     vnode = *vpp;
@@ -241,19 +259,19 @@ out:
 
 
 int fixupdylib(char *dylib) {
-     fprintf(stderr, "Fixing up dylib %s", dylib);
+     fprintf(stderr, "Fixing up dylib %s\n", dylib);
     
 #define VSHARED_DYLD 0x000200
     
-    fprintf(stderr, "Getting vnode");
+    fprintf(stderr, "Getting vnode\n");
     uint64_t vnode = vnodeForPath(dylib);
     
     if (!vnode) {
-         fprintf(stderr, "Failed to get vnode!");
+         fprintf(stderr, "Failed to get vnode!\n");
         return -1;
     }
     
-     fprintf(stderr, "vnode of %s: 0x%llx", dylib, vnode);
+     fprintf(stderr, "vnode of %s: 0x%llx\n", dylib, vnode);
     
     uint32_t v_flags = rk32(vnode + off_v_flags);
     if (v_flags & VSHARED_DYLD) {
@@ -261,12 +279,12 @@ int fixupdylib(char *dylib) {
         return 0;
     }
     
-    fprintf(stderr, "old v_flags: 0x%x", v_flags);
+    fprintf(stderr, "old v_flags: 0x%x\n", v_flags);
     
     wk32(vnode + off_v_flags, v_flags | VSHARED_DYLD);
     
     v_flags = rk32(vnode + off_v_flags);
-     fprintf(stderr, "new v_flags: 0x%x", v_flags);
+     fprintf(stderr, "new v_flags: 0x%x\n", v_flags);
     
     _vnode_put(vnode);
     
@@ -279,9 +297,9 @@ int fixupdylib(char *dylib) {
 
 void set_csflags(uint64_t proc) {
     uint32_t csflags = rk32(proc + off_p_csflags);
-    fprintf(stderr, "Previous CSFlags: 0x%x", csflags);
+    fprintf(stderr, "Previous CSFlags: 0x%x\n", csflags);
     csflags = (csflags | CS_PLATFORM_BINARY | CS_INSTALLER | CS_GET_TASK_ALLOW | CS_DEBUGGED) & ~(CS_RESTRICT | CS_HARD | CS_KILL);
-    fprintf(stderr, "New CSFlags: 0x%x", csflags);
+    fprintf(stderr, "New CSFlags: 0x%x\n", csflags);
     WriteKernel32(proc + off_p_csflags, csflags);
 }
 
@@ -290,12 +308,12 @@ void set_tfplatform(uint64_t proc) {
     uint64_t task = rk64(proc + off_task);
     uint32_t t_flags = rk32(task + off_p_csflags);
     
-    fprintf(stderr, "Old t_flags: 0x%x", t_flags);
+    fprintf(stderr, "Old t_flags: 0x%x\n", t_flags);
     
     t_flags |= TF_PLATFORM;
     WriteKernel32(task+off_p_csflags, t_flags);
     
-    fprintf(stderr, "New t_flags: 0x%x", t_flags);
+    fprintf(stderr, "New t_flags: 0x%x\n", t_flags);
     
 }
 
@@ -332,15 +350,15 @@ void set_sandbox_extensions(uint64_t proc) {
     char name[40] = {0};
     kreadOwO(proc + 0x250, name, 20);
     
-    fprintf(stderr, "proc = 0x%llx & proc_ucred = 0x%llx & sandbox = 0x%llx", proc, proc_ucred, sandbox);
+    fprintf(stderr, "proc = 0x%llx & proc_ucred = 0x%llx & sandbox = 0x%llx\n", proc, proc_ucred, sandbox);
     
     if (sandbox == 0) {
-        fprintf(stderr, "no sandbox, skipping");
+        fprintf(stderr, "no sandbox, skipping\n");
         return;
     }
     
     if (has_file_extension(sandbox, abs_path_exceptions[0])) {
-        fprintf(stderr, "already has '%s', skipping", abs_path_exceptions[0]);
+        fprintf(stderr, "already has '%s', skipping\n", abs_path_exceptions[0]);
         return;
     }
     
@@ -349,12 +367,12 @@ void set_sandbox_extensions(uint64_t proc) {
     while (*path != NULL) {
         ext = extension_create_file(*path, ext);
         if (ext == 0) {
-            fprintf(stderr, "extension_create_file(%s) failed, panic!", *path);
+            fprintf(stderr, "extension_create_file(%s) failed, panic!\n", *path);
         }
         ++path;
     }
     
-    fprintf(stderr, "last extension_create_file ext: 0x%llx", ext);
+    fprintf(stderr, "last extension_create_file ext: 0x%llx\n", ext);
     
     if (ext != 0) {
         extension_add(ext, sandbox, "com.apple.security.exception.files.absolute-path.read-only");
@@ -364,18 +382,18 @@ void set_sandbox_extensions(uint64_t proc) {
 
 
 int setcsflagsandplatformize(int pid) {
-    fixupdylib("/var/containers/Bundle/tweaksupport/usr/lib/TweakInject.dylib");
-    uint64_t proc = get_proc_struct_for_pid(pid);
+    //fixupdylib("/var/containers/Bundle/tweaksupport/usr/lib/TweakInject.dylib");
+    uint64_t proc = proc_find(pid, 3);
     if (proc != 0) {
         set_csflags(proc);
         set_tfplatform(proc);
         set_amfi_entitlements(proc);
         set_sandbox_extensions(proc);
         //set_csblob(proc);
-        fprintf(stderr, "setcsflagsandplatformize on PID %d", pid);
+        fprintf(stderr, "setcsflagsandplatformize on PID %d\n", pid);
         return 0;
     }
-   fprintf(stderr, "Unable to find PID %d to entitle!", pid);
+   fprintf(stderr, "Unable to find PID %d to entitle!\n", pid);
     return 1;
 }
 
@@ -385,29 +403,29 @@ void fixupsetuid(int pid) {
     
     int ret = proc_pidpath(pid, pathbuf, sizeof(pathbuf));
     if (ret < 0){
-        fprintf(stderr, "Unable to get path for PID %d", pid);
+        fprintf(stderr, "Unable to get path for PID %d\n", pid);
         return;
     }
     struct stat file_st;
     if (lstat(pathbuf, &file_st) == -1){
-       fprintf(stderr, "Unable to get stat for file %s", pathbuf);
+       fprintf(stderr, "Unable to get stat for file %s\n", pathbuf);
         return;
     }
     if (file_st.st_mode & S_ISUID){
         uid_t fileUID = file_st.st_uid;
-        fprintf(stderr, "Fixing up setuid for file owned by %u", fileUID);
+        fprintf(stderr, "Fixing up setuid for file owned by %u\n", fileUID);
         
-        uint64_t proc = get_proc_struct_for_pid(pid);
+        uint64_t proc = proc_find(pid, 3);
         if (proc != 0) {
             uint64_t ucred = rk64(proc + off_p_ucred);
             
             uid_t cr_svuid = rk32(ucred + off_ucred_cr_svuid);
-            fprintf(stderr, "Original sv_uid: %u", cr_svuid);
+            fprintf(stderr, "Original sv_uid: %u\n", cr_svuid);
             wk32(ucred + off_ucred_cr_svuid, fileUID);
-            fprintf(stderr, "New sv_uid: %u", fileUID);
+            fprintf(stderr, "New sv_uid: %u\n", fileUID);
         }
     } else {
-        fprintf(stderr, "File %s is not setuid!", pathbuf);
+        fprintf(stderr, "File %s is not setuid!\n", pathbuf);
         return;
     }
 }

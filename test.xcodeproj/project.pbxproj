@@ -38,6 +38,7 @@
 		B80B707A226C3C05007CF0B7 /* os_xml_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B7078226C3C05007CF0B7 /* os_xml_holder.m */; };
 		B80B7080226C3E88007CF0B7 /* sandbox.c in Sources */ = {isa = PBXBuildFile; fileRef = B80B707E226C3E88007CF0B7 /* sandbox.c */; };
 		B80B7083226C3F8B007CF0B7 /* smalloc_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B7081226C3F8B007CF0B7 /* smalloc_holder.m */; };
+		B8A7DC37226D6F9B00B5B3F7 /* allproc_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B8A7DC35226D6F9B00B5B3F7 /* allproc_holder.m */; };
 		B8FAF9B0226BFA0000EF2B7E /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B8FAF9AF226BFA0000EF2B7E /* main.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 /* End PBXBuildFile section */
 
@@ -114,6 +115,8 @@
 		B80B7085226C4263007CF0B7 /* proc_info.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = proc_info.h; sourceTree = "<group>"; };
 		B80B7086226C4281007CF0B7 /* kern_control.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kern_control.h; sourceTree = "<group>"; };
 		B80B7087226C4290007CF0B7 /* route.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = route.h; sourceTree = "<group>"; };
+		B8A7DC35226D6F9B00B5B3F7 /* allproc_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = allproc_holder.m; sourceTree = "<group>"; };
+		B8A7DC36226D6F9B00B5B3F7 /* allproc_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = allproc_holder.h; sourceTree = "<group>"; };
 		B8FAF9AB226BFA0000EF2B7E /* test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = test; sourceTree = BUILT_PRODUCTS_DIR; };
 		B8FAF9AF226BFA0000EF2B7E /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -188,6 +191,8 @@
 				B80B7079226C3C05007CF0B7 /* os_xml_holder.h */,
 				B80B7081226C3F8B007CF0B7 /* smalloc_holder.m */,
 				B80B7082226C3F8B007CF0B7 /* smalloc_holder.h */,
+				B8A7DC35226D6F9B00B5B3F7 /* allproc_holder.m */,
+				B8A7DC36226D6F9B00B5B3F7 /* allproc_holder.h */,
 			);
 			path = PFOffs;
 			sourceTree = "<group>";
@@ -348,6 +353,7 @@
 				B80B7015226C2206007CF0B7 /* jelbrek_server.c in Sources */,
 				B80B701C226C25BF007CF0B7 /* KMem.c in Sources */,
 				B80B704C226C2B8B007CF0B7 /* kc_parameters.c in Sources */,
+				B8A7DC37226D6F9B00B5B3F7 /* allproc_holder.m in Sources */,
 				B80B702F226C28D2007CF0B7 /* tfp0_holder.c in Sources */,
 				B80B7056226C2C1D007CF0B7 /* AddRetHolder.m in Sources */,
 				B80B7070226C3949007CF0B7 /* vnode_lookup_holder.m in Sources */,
