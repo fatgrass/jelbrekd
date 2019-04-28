@@ -11,6 +11,6 @@
 
 #include <stdio.h>
 
-uint64_t get_allproc(void);
+uint64_t get_kernproc(void);
 
 #endif /* allproc_holder_h */

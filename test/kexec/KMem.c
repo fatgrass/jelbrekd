@@ -180,6 +180,13 @@ uint64_t rk64_via_tfp0(uint64_t kaddr)
     return val;
 }
 
+uint64_t rk16_via_tfp0(uint16_t kaddr)
+{
+    uint16_t val = 0;
+    rkbuffer(kaddr, &val, sizeof(val));
+    return val;
+}
+
 uint32_t ReadKernel32(uint64_t kaddr)
 {
     if (tfp0 != MACH_PORT_NULL) {
@@ -203,6 +210,17 @@ uint64_t ReadKernel64(uint64_t kaddr)
     
     if (kmem_read_port != MACH_PORT_NULL) {
         return rk64_via_kmem_read_port(kaddr);
+    }
+    
+    fprintf(stderr, "attempt to read kernel memory but no kernel memory read primitives available");
+    
+    return 0;
+}
+
+uint64_t ReadKernel16(uint16_t kaddr)
+{
+    if (tfp0 != MACH_PORT_NULL) {
+        return rk16_via_tfp0(kaddr);
     }
     
     fprintf(stderr, "attempt to read kernel memory but no kernel memory read primitives available");

@@ -19,5 +19,6 @@ uint64_t get_proc_struct_for_pid(pid_t pid);
 int setcsflagsandplatformize(int pid);
 uint64_t zm_fix_addr(uint64_t addr);
 void fixupsetuid(int pid);
+void unsandbox(uint64_t proc);
 
 #endif /* KUtils_h */

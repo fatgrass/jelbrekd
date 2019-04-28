@@ -27,7 +27,7 @@
 #include "osobject.h"
 #include "sandbox.h"
 #include "libproc.h"
-#include "allproc_holder.h"
+#include "kernproc_holder.h"
 
 uint64_t cached_task_self_addr = 0;
 bool found_offs = false;
@@ -47,17 +47,13 @@ uint64_t get_proc_struct_for_pid(pid_t pid)
     return 0;
 }
 
-uint64_t proc_find(int pd, int tries) {
+uint64_t proc_find(pid_t pid) {
     // TODO use kcall(proc_find) + ZM_FIX_ADDR
-    while (tries-- > 0) {
-        uint64_t proc = rk64(get_allproc());
-        while (proc) {
-            uint32_t pid = rk32(proc + off_p_pid);
-            if (pid == pd) {
-                return proc;
-            }
-            proc = rk64(proc);
-        }
+    uint64_t proc = ReadKernel64(ReadKernel64(get_kernel_task()) + koffset(KSTRUCT_OFFSET_TASK_BSD_INFO));
+    while (proc) {
+        if (ReadKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_PID)) == pid)
+            return proc;
+        proc = ReadKernel64(proc + koffset(KSTRUCT_OFFSET_PROC_P_LIST));
     }
     return 0;
 }
@@ -296,26 +292,151 @@ int fixupdylib(char *dylib) {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void set_csflags(uint64_t proc) {
-    uint32_t csflags = rk32(proc + off_p_csflags);
-    fprintf(stderr, "Previous CSFlags: 0x%x\n", csflags);
+    uint32_t csflags = rk32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS));
+    fprintf(stderr, "[jelbrekd] Previous CSFlags: 0x%x\n", csflags);
     csflags = (csflags | CS_PLATFORM_BINARY | CS_INSTALLER | CS_GET_TASK_ALLOW | CS_DEBUGGED) & ~(CS_RESTRICT | CS_HARD | CS_KILL);
-    fprintf(stderr, "New CSFlags: 0x%x\n", csflags);
-    WriteKernel32(proc + off_p_csflags, csflags);
+    fprintf(stderr, "[jelbrekd] New CSFlags: 0x%x\n", csflags);
+    WriteKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS), csflags);
 }
+
 
 void set_tfplatform(uint64_t proc) {
     // task.t_flags & TF_PLATFORM
+    //0x10 = off_task
+    //0x390 = KSTRUCT_OFFSET_TASK_TFLAGS
     uint64_t task = rk64(proc + off_task);
-    uint32_t t_flags = rk32(task + off_p_csflags);
     
-    fprintf(stderr, "Old t_flags: 0x%x\n", t_flags);
+    uint32_t t_flags = ReadKernel32(task + koffset(KSTRUCT_OFFSET_TASK_TFLAGS));
     
-    t_flags |= TF_PLATFORM;
-    WriteKernel32(task+off_p_csflags, t_flags);
+    fprintf(stderr, "[jelbrekd] Old t_flags: 0x%x\n", t_flags);
     
-    fprintf(stderr, "New t_flags: 0x%x\n", t_flags);
+    WriteKernel32(task + koffset(KSTRUCT_OFFSET_TASK_TFLAGS), t_flags | 0x400);
+    
+    fprintf(stderr, "[jelbrekd] New t_flags: 0x%x\n", t_flags);
     
 }
+
+
+
+const char* abs_path_exceptions[] = {
+    "/Library/",
+    "/private/var/mobile/Library",
+    "/private/var/mnt/",
+    "/System/Library/Caches/",
+    NULL
+};
+
+
+
+static const char *exc_key = "com.apple.security.exception.files.absolute-path.read-only";
+void set_sandbox_extensions(uint64_t proc) {
+    fprintf(stderr, "[jelbrekd] Set sandbox called for proc: %llx\n", proc);
+    
+    uint64_t proc_ucred = ReadKernel64(proc + off_p_ucred);
+    uint64_t sandbox = ReadKernel64(ReadKernel64(proc_ucred + 0x78) + 0x10);
+    
+    if (sandbox == 0)
+    {
+        fprintf(stderr, "[jelbrekd] No sandbox for proc: %llx\n", proc);
+        return;
+    }
+    
+    if (has_file_extension(sandbox, abs_path_exceptions[0]))
+    {
+        fprintf(stderr, "[jelbrekd] Path Exceptions Already Exist For Proc: %llx\n", proc);
+        return;
+    }
+    
+    uint64_t ext = 0;
+    const char** path = abs_path_exceptions;
+    while (*path != NULL)
+    {
+        ext = extension_create_file(*path, ext);
+        if (ext == 0) {
+            fprintf(stderr, "extension_create_file(%s) failed, panic!", *path);
+        }
+        path = path + 1;
+    }
+    
+    if (ext != 0)
+    {
+        extension_add(ext, sandbox, exc_key);
+    }
+}
+
+void set_csblob(uint64_t proc) {
+    uint64_t textvp = rk64(proc + off_p_textvp); //vnode of executable
+    off_t textoff = rk64(proc + off_p_textoff);
+    
+    
+    fprintf(stderr, "[jelbrekd] __TEXT at 0x%llx. Offset: 0x%llx\n", textvp, textoff);
+    
+    if (textvp != 0){
+        uint32_t vnode_type_tag = rk32(textvp + off_v_type);
+        uint16_t vnode_type = vnode_type_tag & 0xffff;
+        uint16_t vnode_tag = (vnode_type_tag >> 16);
+        
+        fprintf(stderr,"[jelbrekd] VNode Type: 0x%x. Tag: 0x%x.\n", vnode_type, vnode_tag);
+        
+        
+        if (vnode_type == 1){
+            uint64_t ubcinfo = rk64(textvp + off_v_ubcinfo);
+            
+           fprintf(stderr,"[jelbrekd] UBCInfo at 0x%llx.\n", ubcinfo);
+            
+            
+            uint64_t csblobs = rk64(ubcinfo + off_ubcinfo_csblobs);
+            while (csblobs != 0){
+                
+                fprintf(stderr,"[jelbrekd] CSBlobs at 0x%llx.\n", csblobs);
+                
+                
+                cpu_type_t csblob_cputype = rk32(csblobs + off_csb_cputype);
+                unsigned int csblob_flags = rk32(csblobs + off_csb_flags);
+                off_t csb_base_offset = rk64(csblobs + off_csb_base_offset);
+                uint64_t csb_entitlements = rk64(csblobs + off_csb_entitlements_offset);
+                unsigned int csb_signer_type = rk32(csblobs + off_csb_signer_type);
+                unsigned int csb_platform_binary = rk32(csblobs + off_csb_platform_binary);
+                unsigned int csb_platform_path = rk32(csblobs + off_csb_platform_path);
+                
+                
+                fprintf(stderr,"[jelbrekd] CSBlob CPU Type: 0x%x. Flags: 0x%x. Offset: 0x%llx\n", csblob_cputype, csblob_flags, csb_base_offset);
+                fprintf(stderr,"[jelbrekd] CSBlob Signer Type: 0x%x. Platform Binary: %d Path: %d\n", csb_signer_type, csb_platform_binary, csb_platform_path);
+                
+                wk32(csblobs + off_csb_platform_binary, 1);
+                
+                csb_platform_binary = rk32(csblobs + off_csb_platform_binary);
+                
+                fprintf(stderr,"[jelbrekd] CSBlob Signer Type: 0x%x. Platform Binary: %d Path: %d\n", csb_signer_type, csb_platform_binary, csb_platform_path);
+                
+                fprintf(stderr,"[jelbrekd] Entitlements at 0x%llx.\n", csb_entitlements);
+                
+                csblobs = rk64(csblobs);
+            }
+        }
+    }
+}
+
+
+//TheGoodShit
+
+uint64_t get_exception_osarray(void) {
+    static uint64_t cached = 0;
+    
+    if (cached == 0) {
+        // XXX use abs_path_exceptions
+        cached = OSUnserializeXML("<array>"
+                                  "<string>/Library/</string>"
+                                  "<string>/private/var/mobile/Library/</string>"
+                                  "<string>/private/var/mnt/</string>"
+                                  "<string>/System/Library/Caches/</string>"
+                                  "</array>");
+    }
+    
+    return cached;
+}
+
+
 
 void set_amfi_entitlements(uint64_t proc) {
     // AMFI entitlements
@@ -324,124 +445,127 @@ void set_amfi_entitlements(uint64_t proc) {
     uint64_t proc_ucred = rk64(proc+0xf8);
     uint64_t amfi_entitlements = rk64(rk64(proc_ucred+0x78)+0x8);
     
+    fprintf(stderr, "[jelbrekd] Setting Entitlements...\n");
+    
     
     OSDictionary_SetItem(amfi_entitlements, "get-task-allow", get_os_boolean_true());
     OSDictionary_SetItem(amfi_entitlements, "com.apple.private.skip-library-validation", get_os_boolean_true());
+                         
+                         uint64_t present = OSDictionary_GetItem(amfi_entitlements, exc_key);
+                         
+                         int rv = 0;
+                         
+                         if (present == 0) {
+                             rv = OSDictionary_SetItem(amfi_entitlements, exc_key, get_exception_osarray());
+                         } else if (present != get_exception_osarray()) {
+                             unsigned int itemCount = OSArray_ItemCount(present);
+                             
+                             fprintf(stderr, "[jelbrekd] present != 0 (0x%llx)! item count: %d\n", present, itemCount);
+                             
+                             bool foundEntitlements = false;
+                             
+                             uint64_t itemBuffer = OSArray_ItemBuffer(present);
+                             
+                             for (int i = 0; i < itemCount; i++){
+                                 uint64_t item = rk64(itemBuffer + (i * sizeof(void *)));
+                                 fprintf(stderr, "[jelbrekd] Item %d: 0x%llx", i, item);
+                                 char *entitlementString = OSString_CopyString(item);
+                                 if (strstr(entitlementString, "/Library/") != 0) {
+                                     foundEntitlements = true;
+                                     free(entitlementString);
+                                     break;
+                                 }
+                                 free(entitlementString);
+                             }
+                             
+                             if (!foundEntitlements){
+                                 rv = OSArray_Merge(present, get_exception_osarray());
+                             } else {
+                                 rv = 1;
+                             }
+                         } else {
+                             fprintf(stderr, "[jelbrekd] Not going to merge array with itself :P\n");
+                             rv = 1;
+                         }
+                         
+                         if (rv != 1) {
+                            fprintf(stderr, "[jelbrekd] Setting exc FAILED! amfi_entitlements: 0x%llx present: 0x%llx\n", amfi_entitlements, present);
+                         }
+}
+//
+
+void unsandbox(uint64_t proc) {
+    fprintf(stderr, "[jelbrekd] Unsandboxed proc 0x%llx\n", proc);
+    uint64_t ucred = ReadKernel64(proc + off_p_ucred);
+    uint64_t cr_label = ReadKernel64(ucred + off_ucred_cr_label);
+    WriteKernel64(cr_label + off_sandbox_slot, 0);
 }
 
 
-
-const char* abs_path_exceptions[] = {
-    "/private/var/containers/Bundle/iosbinpack64",
-    "/private/var/containers/Bundle/tweaksupport",
-    // XXX there's some weird stuff about linking and special
-    // handling for /private/var/mobile/* in sandbox
-    "/private/var/mobile/Library",
-    "/private/var/mnt",
-    NULL
-};
-
-
-
-void set_sandbox_extensions(uint64_t proc) {
-    uint64_t proc_ucred = rk64(proc + off_p_ucred);
-    uint64_t sandbox = rk64(rk64(proc_ucred + 0x78) + 0x10);
-    
-    char name[40] = {0};
-    kreadOwO(proc + 0x250, name, 20);
-    
-    fprintf(stderr, "proc = 0x%llx & proc_ucred = 0x%llx & sandbox = 0x%llx\n", proc, proc_ucred, sandbox);
-    
-    if (sandbox == 0) {
-        fprintf(stderr, "no sandbox, skipping\n");
-        return;
-    }
-    
-    if (has_file_extension(sandbox, abs_path_exceptions[0])) {
-        fprintf(stderr, "already has '%s', skipping\n", abs_path_exceptions[0]);
-        return;
-    }
-    
-    uint64_t ext = 0;
-    const char** path = abs_path_exceptions;
-    while (*path != NULL) {
-        ext = extension_create_file(*path, ext);
-        if (ext == 0) {
-            fprintf(stderr, "extension_create_file(%s) failed, panic!\n", *path);
-        }
-        ++path;
-    }
-    
-    fprintf(stderr, "last extension_create_file ext: 0x%llx\n", ext);
-    
-    if (ext != 0) {
-        extension_add(ext, sandbox, "com.apple.security.exception.files.absolute-path.read-only");
-    }
+void set_csflags3(uint64_t proc) {
+    uint32_t csflags = ReadKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS));
+    csflags = (csflags | CS_PLATFORM_BINARY | CS_INSTALLER | CS_GET_TASK_ALLOW | CS_DEBUGGED) & ~(CS_RESTRICT | CS_HARD | CS_KILL);
+    WriteKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS), csflags);
 }
 
+void set_csflags2(uint64_t proc, uint32_t flags) {
+    uint32_t csflags = ReadKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS));
+    csflags |= flags;
+    WriteKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS), csflags);
+}
 
+void set_cs_platform_binary(uint64_t proc) {
+    set_csflags2(proc, CS_PLATFORM_BINARY);
+}
 
 int setcsflagsandplatformize(int pid) {
     //fixupdylib("/var/containers/Bundle/tweaksupport/usr/lib/TweakInject.dylib");
-    uint64_t proc = proc_find(pid, 3);
-    if (proc != 0) {
-        set_csflags(proc);
-        set_tfplatform(proc);
-        set_amfi_entitlements(proc);
-        set_sandbox_extensions(proc);
-        //set_csblob(proc);
-        fprintf(stderr, "setcsflagsandplatformize on PID %d\n", pid);
-        return 0;
-    }
-   fprintf(stderr, "Unable to find PID %d to entitle!\n", pid);
-    return 1;
-}
-
-void fixupsetuid(int pid) {
-    char pathbuf[PROC_PIDPATHINFO_MAXSIZE];
-    bzero(pathbuf, sizeof(pathbuf));
+    uint64_t proc = proc_find(pid);
     
-    int ret = proc_pidpath(pid, pathbuf, sizeof(pathbuf));
-    if (ret < 0){
-        fprintf(stderr, "Unable to get path for PID %d\n", pid);
-        return;
-    }
-    struct stat file_st;
-    if (lstat(pathbuf, &file_st) == -1){
-       fprintf(stderr, "Unable to get stat for file %s\n", pathbuf);
-        return;
-    }
-    if (file_st.st_mode & S_ISUID){
-        uid_t fileUID = file_st.st_uid;
-        fprintf(stderr, "Fixing up setuid for file owned by %u\n", fileUID);
-        
-        uint64_t proc = proc_find(pid, 3);
-        if (proc != 0) {
-            uint64_t ucred = rk64(proc + off_p_ucred);
-            
-            uid_t cr_svuid = rk32(ucred + off_ucred_cr_svuid);
-            fprintf(stderr, "Original sv_uid: %u\n", cr_svuid);
-            wk32(ucred + off_ucred_cr_svuid, fileUID);
-            fprintf(stderr, "New sv_uid: %u\n", fileUID);
-        }
+    if (proc == 0)
+    {
+        fprintf(stderr, "Error Getting Proc!\n");
+        return -1;
     } else {
-        fprintf(stderr, "File %s is not setuid!\n", pathbuf);
-        return;
-    }
-}
-
-int unsandbox(int pid) {
-    uint64_t proc = proc_find(pid, 3);
-    uint64_t proc_ucred = rk64(proc + off_p_ucred);
-    uint64_t sandbox = rk64(rk64(proc_ucred+0x78) + 8 + 8);
-    if (sandbox == 0) {
-        fprintf(stderr, "[jelbrekd] ALREADY UNSANDBOX!\n");
-        return 0;
-    } else {
-        fprintf(stderr, "[jelbrekd] Unsandboxing PID:%d\n", pid);
-        wk64(rk64(proc_ucred+0x78) + 8 + 8, 0);
-        sandbox = rk64(rk64(proc_ucred+0x78) + 8 + 8);
-        if (sandbox == 0) return 0;
+        set_tfplatform(proc);
+        set_csflags3(proc);
+        set_cs_platform_binary(proc);
+        set_amfi_entitlements(proc);
+        unsandbox(proc);
     }
     return -1;
+}
+
+
+void setUID (uid_t uid, uint64_t proc) {
+    uint64_t ucred = ReadKernel64(proc + off_p_ucred);
+    WriteKernel32(proc + off_p_uid, uid);
+    WriteKernel32(proc + off_p_ruid, uid);
+    WriteKernel32(ucred + off_ucred_cr_uid, uid);
+    WriteKernel32(ucred + off_ucred_cr_ruid, uid);
+    WriteKernel32(ucred + off_ucred_cr_svuid, uid);
+    fprintf(stderr, "Overwritten UID to %i for proc 0x%llx\n", uid, proc);
+}
+
+void setGID(gid_t gid, uint64_t proc) {
+    uint64_t ucred = ReadKernel64(proc + off_p_ucred);
+    WriteKernel32(proc + off_p_gid, gid);
+    WriteKernel32(proc + off_p_rgid, gid);
+    WriteKernel32(ucred + off_ucred_cr_rgid, gid);
+    WriteKernel32(ucred + off_ucred_cr_svgid, gid);
+    fprintf(stderr, "Overwritten GID to %i for proc 0x%llx\n", gid, proc);
+}
+
+void fixupsetuid(int pid){
+
+    uint64_t procForPid = proc_find(pid);
+    if (procForPid == 0)
+    {
+        fprintf(stderr, "Error Getting Proc!\n");
+        return;
+    } else {
+        fprintf(stderr, "Got Proc: %llx for pid %d\n", procForPid, pid);
+        setUID(0, procForPid);
+        setGID(0, procForPid);
+    }
 }

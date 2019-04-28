@@ -52,6 +52,7 @@ size_t kwriteOwO(uint64_t where, const void* p, size_t size);
 #define rk64(kaddr) ReadKernel64(kaddr)
 uint32_t ReadKernel32(uint64_t kaddr);
 uint64_t ReadKernel64(uint64_t kaddr);
+uint64_t ReadKernel16(uint16_t kaddr);
 
 #define wk32(kaddr, val) WriteKernel32(kaddr, val)
 #define wk64(kaddr, val) WriteKernel64(kaddr, val)

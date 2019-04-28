@@ -140,12 +140,12 @@ void extension_add(uint64_t ext, uint64_t sb, const char* desc) {
     // XXX patchfinder + kexecute would be way better
     
     int slot = hashing_magic(ent_key);
-    uint64_t ext_table = rk64(sb + sizeof(void *));
-    uint64_t insert_at_p = ext_table + slot * sizeof(void*);
+    uint64_t ext_table = rk64(sb + 8);
+    uint64_t insert_at_p = ext_table + slot * 8;
     uint64_t insert_at = rk64(insert_at_p);
     
     while (insert_at != 0) {
-        uint64_t kdsc = insert_at + offsetof(struct extension_hdr, desc);
+        uint64_t kdsc = insert_at + 0x10;
         
         if (kstrcmp(kdsc, desc) == 0) {
             break;
@@ -160,7 +160,7 @@ void extension_add(uint64_t ext, uint64_t sb, const char* desc) {
         wk64(insert_at_p, insert_at);
     } else {
         // XXX no duplicate check
-        uint64_t ext_lst_p = insert_at + offsetof(struct extension_hdr, ext_lst);
+        uint64_t ext_lst_p = insert_at + 8;
         uint64_t ext_lst = rk64(ext_lst_p);
         
         while (ext_lst != 0) {
@@ -181,12 +181,12 @@ int has_file_extension(uint64_t sb, const char* path) {
     int found = 0;
     
     int slot = hashing_magic(ent_key);
-    uint64_t ext_table = rk64(sb + sizeof(void *));
-    uint64_t insert_at_p = ext_table + slot * sizeof(void*);
+    uint64_t ext_table = rk64(sb + 8);
+    uint64_t insert_at_p = ext_table + slot * 8;
     uint64_t insert_at = rk64(insert_at_p);
     
     while (insert_at != 0) {
-        uint64_t kdsc = insert_at + offsetof(struct extension_hdr, desc);
+        uint64_t kdsc = insert_at + 0x10;
         
         if (kstrcmp(kdsc, desc) == 0) {
             break;
@@ -197,17 +197,17 @@ int has_file_extension(uint64_t sb, const char* path) {
     }
     
     if (insert_at != 0) {
-        uint64_t ext_lst = rk64(insert_at + offsetof(struct extension_hdr, ext_lst));
+        uint64_t ext_lst = rk64(insert_at + 8);
         
         uint64_t plen = strlen(path);
         char *exist = malloc(plen + 1);
         exist[plen] = '\0';
         
         while (ext_lst != 0) {
-            // XXX no type/subtype check
-            uint64_t data_len = rk64(ext_lst + offsetof(struct extension, data_len));
+            uint64_t data_len = rk64(ext_lst + 0x38);
+            
             if (data_len == plen) {
-                uint64_t data = rk64(ext_lst + offsetof(struct extension, data));
+                uint64_t data = rk64(ext_lst + 0x30);
                 kreadOwO(data, exist, plen);
                 
                 if (strcmp(path, exist) == 0) {
