@@ -34,10 +34,12 @@
 		B80B706D226C38F1007CF0B7 /* vnode_put_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B706B226C38F1007CF0B7 /* vnode_put_holder.m */; };
 		B80B7070226C3949007CF0B7 /* vnode_lookup_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B706E226C3949007CF0B7 /* vnode_lookup_holder.m */; };
 		B80B7073226C3AA1007CF0B7 /* os_boolean_true_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B7071226C3AA1007CF0B7 /* os_boolean_true_holder.m */; };
-		B80B7077226C3B0A007CF0B7 /* osobject.c in Sources */ = {isa = PBXBuildFile; fileRef = B80B7075226C3B0A007CF0B7 /* osobject.c */; };
 		B80B707A226C3C05007CF0B7 /* os_xml_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B7078226C3C05007CF0B7 /* os_xml_holder.m */; };
-		B80B7080226C3E88007CF0B7 /* sandbox.c in Sources */ = {isa = PBXBuildFile; fileRef = B80B707E226C3E88007CF0B7 /* sandbox.c */; };
 		B80B7083226C3F8B007CF0B7 /* smalloc_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B80B7081226C3F8B007CF0B7 /* smalloc_holder.m */; };
+		B8413D3A2276302B00D48853 /* ext_add_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B8413D382276302B00D48853 /* ext_add_holder.m */; };
+		B8413D3E2276333D00D48853 /* ext_rel_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B8413D3C2276333D00D48853 /* ext_rel_holder.m */; };
+		B8413D412276336B00D48853 /* ext_create_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B8413D3F2276336B00D48853 /* ext_create_holder.m */; };
+		B8413D4522763BCD00D48853 /* strlen_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B8413D4422763BCD00D48853 /* strlen_holder.m */; };
 		B8A7DC37226D6F9B00B5B3F7 /* kernproc_holder.m in Sources */ = {isa = PBXBuildFile; fileRef = B8A7DC35226D6F9B00B5B3F7 /* kernproc_holder.m */; };
 		B8FAF9B0226BFA0000EF2B7E /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = B8FAF9AF226BFA0000EF2B7E /* main.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 /* End PBXBuildFile section */
@@ -103,18 +105,23 @@
 		B80B706F226C3949007CF0B7 /* vnode_lookup_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = vnode_lookup_holder.h; sourceTree = "<group>"; };
 		B80B7071226C3AA1007CF0B7 /* os_boolean_true_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = os_boolean_true_holder.m; sourceTree = "<group>"; };
 		B80B7072226C3AA1007CF0B7 /* os_boolean_true_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = os_boolean_true_holder.h; sourceTree = "<group>"; };
-		B80B7075226C3B0A007CF0B7 /* osobject.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = osobject.c; sourceTree = "<group>"; };
-		B80B7076226C3B0A007CF0B7 /* osobject.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = osobject.h; sourceTree = "<group>"; };
 		B80B7078226C3C05007CF0B7 /* os_xml_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = os_xml_holder.m; sourceTree = "<group>"; };
 		B80B7079226C3C05007CF0B7 /* os_xml_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = os_xml_holder.h; sourceTree = "<group>"; };
-		B80B707E226C3E88007CF0B7 /* sandbox.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = sandbox.c; sourceTree = "<group>"; };
-		B80B707F226C3E88007CF0B7 /* sandbox.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = sandbox.h; sourceTree = "<group>"; };
 		B80B7081226C3F8B007CF0B7 /* smalloc_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = smalloc_holder.m; sourceTree = "<group>"; };
 		B80B7082226C3F8B007CF0B7 /* smalloc_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = smalloc_holder.h; sourceTree = "<group>"; };
 		B80B7084226C4253007CF0B7 /* libproc.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = libproc.h; sourceTree = "<group>"; };
 		B80B7085226C4263007CF0B7 /* proc_info.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = proc_info.h; sourceTree = "<group>"; };
 		B80B7086226C4281007CF0B7 /* kern_control.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kern_control.h; sourceTree = "<group>"; };
 		B80B7087226C4290007CF0B7 /* route.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = route.h; sourceTree = "<group>"; };
+		B8413D3722762E9D00D48853 /* common.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = common.h; sourceTree = "<group>"; };
+		B8413D382276302B00D48853 /* ext_add_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ext_add_holder.m; sourceTree = "<group>"; };
+		B8413D392276302B00D48853 /* ext_add_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ext_add_holder.h; sourceTree = "<group>"; };
+		B8413D3C2276333D00D48853 /* ext_rel_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ext_rel_holder.m; sourceTree = "<group>"; };
+		B8413D3D2276333D00D48853 /* ext_rel_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ext_rel_holder.h; sourceTree = "<group>"; };
+		B8413D3F2276336B00D48853 /* ext_create_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ext_create_holder.m; sourceTree = "<group>"; };
+		B8413D402276336B00D48853 /* ext_create_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ext_create_holder.h; sourceTree = "<group>"; };
+		B8413D4322763BC400D48853 /* strlen_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = strlen_holder.h; sourceTree = "<group>"; };
+		B8413D4422763BCD00D48853 /* strlen_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = strlen_holder.m; sourceTree = "<group>"; };
 		B8A7DC35226D6F9B00B5B3F7 /* kernproc_holder.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = kernproc_holder.m; sourceTree = "<group>"; };
 		B8A7DC36226D6F9B00B5B3F7 /* kernproc_holder.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = kernproc_holder.h; sourceTree = "<group>"; };
 		B8FAF9AB226BFA0000EF2B7E /* test */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.dylib"; includeInIndex = 0; path = test; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -148,8 +155,6 @@
 			children = (
 				B80B701D226C2641007CF0B7 /* KUtils.c */,
 				B80B701E226C2641007CF0B7 /* KUtils.h */,
-				B80B707E226C3E88007CF0B7 /* sandbox.c */,
-				B80B707F226C3E88007CF0B7 /* sandbox.h */,
 			);
 			path = utils;
 			sourceTree = "<group>";
@@ -157,7 +162,6 @@
 		B80B7024226C26D8007CF0B7 /* lib */ = {
 			isa = PBXGroup;
 			children = (
-				B80B7074226C3B00007CF0B7 /* osobject */,
 				B80B7031226C29FD007CF0B7 /* kernel_call */,
 				B80B7028226C27EF007CF0B7 /* PFOffs */,
 				B80B7025226C26DF007CF0B7 /* find_port.c */,
@@ -193,6 +197,14 @@
 				B80B7082226C3F8B007CF0B7 /* smalloc_holder.h */,
 				B8A7DC35226D6F9B00B5B3F7 /* kernproc_holder.m */,
 				B8A7DC36226D6F9B00B5B3F7 /* kernproc_holder.h */,
+				B8413D382276302B00D48853 /* ext_add_holder.m */,
+				B8413D392276302B00D48853 /* ext_add_holder.h */,
+				B8413D3C2276333D00D48853 /* ext_rel_holder.m */,
+				B8413D3D2276333D00D48853 /* ext_rel_holder.h */,
+				B8413D3F2276336B00D48853 /* ext_create_holder.m */,
+				B8413D402276336B00D48853 /* ext_create_holder.h */,
+				B8413D4422763BCD00D48853 /* strlen_holder.m */,
+				B8413D4322763BC400D48853 /* strlen_holder.h */,
 			);
 			path = PFOffs;
 			sourceTree = "<group>";
@@ -242,6 +254,7 @@
 				B80B7085226C4263007CF0B7 /* proc_info.h */,
 				B80B7086226C4281007CF0B7 /* kern_control.h */,
 				B80B7087226C4290007CF0B7 /* route.h */,
+				B8413D3722762E9D00D48853 /* common.h */,
 			);
 			path = include;
 			sourceTree = "<group>";
@@ -252,15 +265,6 @@
 				B80B7058226C2C85007CF0B7 /* libmis.tbd */,
 			);
 			name = Frameworks;
-			sourceTree = "<group>";
-		};
-		B80B7074226C3B00007CF0B7 /* osobject */ = {
-			isa = PBXGroup;
-			children = (
-				B80B7075226C3B0A007CF0B7 /* osobject.c */,
-				B80B7076226C3B0A007CF0B7 /* osobject.h */,
-			);
-			path = osobject;
 			sourceTree = "<group>";
 		};
 		B8FAF9A2226BFA0000EF2B7E = {
@@ -362,7 +366,7 @@
 				B80B7083226C3F8B007CF0B7 /* smalloc_holder.m in Sources */,
 				B80B706D226C38F1007CF0B7 /* vnode_put_holder.m in Sources */,
 				B80B7042226C2B0B007CF0B7 /* kernel_memory.c in Sources */,
-				B80B7080226C3E88007CF0B7 /* sandbox.c in Sources */,
+				B8413D412276336B00D48853 /* ext_create_holder.m in Sources */,
 				B80B7027226C26DF007CF0B7 /* find_port.c in Sources */,
 				B80B7023226C26B3007CF0B7 /* OffsetHolder.m in Sources */,
 				B80B7052226C2BBE007CF0B7 /* user_client.c in Sources */,
@@ -371,17 +375,19 @@
 				B80B7063226C2D89007CF0B7 /* offsets.m in Sources */,
 				B80B704F226C2BA4007CF0B7 /* kernel_slide.c in Sources */,
 				B80B703C226C2A80007CF0B7 /* platform.c in Sources */,
-				B80B7077226C3B0A007CF0B7 /* osobject.c in Sources */,
 				B80B7067226C375A007CF0B7 /* zone_map_ref_holder.m in Sources */,
 				B80B7049226C2B6F007CF0B7 /* pac.c in Sources */,
+				B8413D3A2276302B00D48853 /* ext_add_holder.m in Sources */,
 				B80B7034226C2A06007CF0B7 /* parameters.c in Sources */,
 				B80B705F226C2D0B007CF0B7 /* kexecute.c in Sources */,
 				B80B706A226C37C8007CF0B7 /* vfs_context_current_holder.m in Sources */,
 				B8FAF9B0226BFA0000EF2B7E /* main.m in Sources */,
 				B80B7046226C2B4C007CF0B7 /* kernel_call.c in Sources */,
+				B8413D4522763BCD00D48853 /* strlen_holder.m in Sources */,
 				B80B703F226C2AAD007CF0B7 /* platform_match.c in Sources */,
 				B80B7073226C3AA1007CF0B7 /* os_boolean_true_holder.m in Sources */,
 				B80B701F226C2641007CF0B7 /* KUtils.c in Sources */,
+				B8413D3E2276333D00D48853 /* ext_rel_holder.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -24,11 +24,20 @@
 #include "vnode_lookup_holder.h"
 #include "os_boolean_true_holder.h"
 #include <sys/fcntl.h>
-#include "osobject.h"
 #include "sandbox.h"
+#include "common.h"
+#include "ext_add_holder.h"
+#include "ext_rel_holder.h"
+#include "ext_create_holder.h"
 #include "libproc.h"
 #include "kernproc_holder.h"
+#include "strlen_holder.h"
+#include "smalloc_holder.h"
+#include "kernel_call.h"
+#include "os_xml_holder.h"
 
+
+#define SIZEOF_STRUCT_EXTENSION 0x60
 uint64_t cached_task_self_addr = 0;
 bool found_offs = false;
 
@@ -229,270 +238,230 @@ out:
 
 #define ADDR                 "0x%016llx"
 #define TF_PLATFORM 0x00000400 /* task is a platform binary */
-#define CS_VALID        0x0000001    /* dynamically valid */
-#define CS_ADHOC        0x0000002    /* ad hoc signed */
-#define CS_GET_TASK_ALLOW    0x0000004    /* has get-task-allow entitlement */
-#define CS_INSTALLER        0x0000008    /* has installer entitlement */
-#define CS_HARD            0x0000100    /* don't load invalid pages */
-#define CS_KILL            0x0000200    /* kill process if it becomes invalid */
-#define CS_CHECK_EXPIRATION    0x0000400    /* force expiration checking */
-#define CS_RESTRICT        0x0000800    /* tell dyld to treat restricted */
-#define CS_ENFORCEMENT        0x0001000    /* require enforcement */
-#define CS_REQUIRE_LV        0x0002000    /* require library validation */
-#define CS_ENTITLEMENTS_VALIDATED    0x0004000
-#define CS_ALLOWED_MACHO    0x00ffffe
-#define CS_EXEC_SET_HARD    0x0100000    /* set CS_HARD on any exec'ed process */
-#define CS_EXEC_SET_KILL    0x0200000    /* set CS_KILL on any exec'ed process */
-#define CS_EXEC_SET_ENFORCEMENT    0x0400000    /* set CS_ENFORCEMENT on any exec'ed process */
-#define CS_EXEC_SET_INSTALLER    0x0800000    /* set CS_INSTALLER on any exec'ed process */
-#define CS_KILLED        0x1000000    /* was killed by kernel for invalidity */
-#define CS_DYLD_PLATFORM    0x2000000    /* dyld used to load this is a platform binary */
-#define CS_PLATFORM_BINARY    0x4000000    /* this is a platform binary */
-#define CS_PLATFORM_PATH    0x8000000    /* platform binary by the fact of path (osx only) */
-#define CS_DEBUGGED         0x10000000  /* process is currently or has previously been debugged and allowed to run with invalid pages */
-#define CS_SIGNED         0x20000000  /* process has a signature (may have gone invalid) */
-#define CS_DEV_CODE         0x40000000  /* code is dev signed, cannot be loaded into prod signed code (will go away with rdar://problem/28322552) */
+#define CS_VALID 0x0000001 /* dynamically valid */
+#define CS_GET_TASK_ALLOW 0x0000004 /* has get-task-allow entitlement */
+#define CS_INSTALLER 0x0000008 /* has installer entitlement */
+#define CS_HARD 0x0000100 /* don't load invalid pages */
+#define CS_KILL 0x0000200 /* kill process if it becomes invalid */
+#define CS_CHECK_EXPIRATION 0x0000400 /* force expiration checking */
+#define CS_RESTRICT 0x0000800 /* tell dyld to treat restricted */
+#define CS_REQUIRE_LV 0x0002000 /* require library validation */
+#define CS_KILLED 0x1000000 /* was killed by kernel for invalidity */
+#define CS_DYLD_PLATFORM 0x2000000 /* dyld used to load this is a platform binary */
+#define CS_PLATFORM_BINARY 0x4000000 /* this is a platform binary */
+#define CS_DEBUGGED 0x10000000 /* process is currently or has previously been debugged and allowed to run with invalid pages */
+#define off_OSDictionary_SetObjectWithCharP (sizeof(void*) * 0x1F)
+#define off_OSDictionary_GetObjectWithCharP (sizeof(void*) * 0x26)
+#define off_OSString_GetLength (sizeof(void*) * 0x11)
+#define off_OSObject_Release (sizeof(void*) * 0x05)
+#define off_OSDictionary_Merge (sizeof(void*) * 0x23)
+#define off_OSArray_Merge (sizeof(void*) * 0x1E)
 
 
-int fixupdylib(char *dylib) {
-     fprintf(stderr, "Fixing up dylib %s\n", dylib);
-    
-#define VSHARED_DYLD 0x000200
-    
-    fprintf(stderr, "Getting vnode\n");
-    uint64_t vnode = vnodeForPath(dylib);
-    
-    if (!vnode) {
-         fprintf(stderr, "Failed to get vnode!\n");
-        return -1;
-    }
-    
-     fprintf(stderr, "vnode of %s: 0x%llx\n", dylib, vnode);
-    
-    uint32_t v_flags = rk32(vnode + off_v_flags);
-    if (v_flags & VSHARED_DYLD) {
-        _vnode_put(vnode);
-        return 0;
-    }
-    
-    fprintf(stderr, "old v_flags: 0x%x\n", v_flags);
-    
-    wk32(vnode + off_v_flags, v_flags | VSHARED_DYLD);
-    
-    v_flags = rk32(vnode + off_v_flags);
-     fprintf(stderr, "new v_flags: 0x%x\n", v_flags);
-    
-    _vnode_put(vnode);
-    
-    return !(v_flags & VSHARED_DYLD);
+
+
+
+size_t kstrlen(uint64_t ptr) {
+    size_t kstrlen = (size_t)kexecute2(get_strlen(), ptr, 0, 0, 0, 0, 0, 0);
+    return kstrlen;
 }
+
+uint64_t kstralloc(const char *str) {
+    size_t str_kptr_size = strlen(str) + 1;
+    uint64_t str_kptr = kmem_alloc(str_kptr_size);
+    if (str_kptr != 0) {
+        kwriteOwO(str_kptr, str, str_kptr_size);
+    }
+    return str_kptr;
+}
+
+void kstrfree(uint64_t ptr) {
+    if (ptr != 0) {
+        size_t size = kstrlen(ptr);
+        kmem_free(ptr, size);
+    }
+}
+
+uint64_t OSObjectFunc(uint64_t OSObject, uint32_t off) {
+    uint64_t OSObjectFunc = 0;
+    uint64_t vtable = ReadKernel64(OSObject);
+    vtable = kernel_xpacd(vtable);
+    if (vtable != 0) {
+        OSObjectFunc = ReadKernel64(vtable + off);
+        OSObjectFunc = kernel_xpaci(OSObjectFunc);
+    }
+    return OSObjectFunc;
+}
+
+
+bool OSDictionary_SetItem(uint64_t OSDictionary, const char *key, uint64_t val) {
+    bool OSDictionary_SetItem = false;
+    uint64_t function = OSObjectFunc(OSDictionary, off_OSDictionary_SetObjectWithCharP);
+    if (function != 0) {
+        uint64_t kstr = kstralloc(key);
+        if (kstr != 0) {
+            OSDictionary_SetItem = (bool)kexecute2(function, OSDictionary, kstr, val, 0, 0, 0, 0);
+            kstrfree(kstr);
+        }
+    }
+    return OSDictionary_SetItem;
+}
+
+uint64_t OSDictionary_GetItem(uint64_t OSDictionary, const char *key) {
+    uint64_t OSDictionary_GetItem = false;
+    uint64_t function = OSObjectFunc(OSDictionary, off_OSDictionary_GetObjectWithCharP);
+    if (function != 0) {
+        uint64_t kstr = kstralloc(key);
+        if (kstr != 0) {
+            OSDictionary_GetItem = kexecute2(function, OSDictionary, kstr, 0, 0, 0, 0, 0);
+            if (OSDictionary_GetItem != 0 && (OSDictionary_GetItem >> 32) == 0) {
+                OSDictionary_GetItem = zm_fix_addr(OSDictionary_GetItem);
+            }
+            kstrfree(kstr);
+        }
+    }
+    return OSDictionary_GetItem;
+}
+
+uint32_t OSString_GetLength(uint64_t OSString) {
+    uint32_t OSString_GetLength = 0;
+    uint64_t function = OSObjectFunc(OSString, off_OSString_GetLength);
+    if (function != 0) {
+        OSString_GetLength = (uint32_t)kexecute2(function, OSString, 0, 0, 0, 0, 0, 0);
+    }
+    return OSString_GetLength;
+}
+
+uint64_t OSString_CStringPtr(uint64_t OSString) {
+    uint64_t OSString_CStringPtr = 0;
+    if (OSString != 0) {
+        OSString_CStringPtr = ReadKernel64(OSString + 0x10);
+    }
+    return OSString_CStringPtr;
+}
+
+
+char *OSString_CopyString(uint64_t OSString) {
+    char *OSString_CopyString = NULL;
+    uint32_t length = OSString_GetLength(OSString);
+    if (length != 0) {
+        char *str = malloc(length + 1);
+        if (str != NULL) {
+            str[length] = 0;
+            uint64_t CStringPtr = OSString_CStringPtr(OSString);
+            if (CStringPtr != 0) {
+                if (kreadOwO(CStringPtr, str, length) == length) {
+                    OSString_CopyString = strdup(str);
+                }
+            }
+            SafeFreeNULL(str);
+        }
+    }
+    return OSString_CopyString;
+}
+
+uint64_t OSUnserializeXML(const char *buffer) {
+    uint64_t OSUnserializeXML = 0;
+    uint64_t kstr = kstralloc(buffer);
+    if (kstr != 0) {
+        uint64_t error_kptr = 0;
+        OSUnserializeXML = kexecute2(get_os_xml(), kstr, error_kptr, 0, 0, 0, 0, 0);
+        if (OSUnserializeXML != 0) {
+            OSUnserializeXML = zm_fix_addr(OSUnserializeXML);
+        }
+        kstrfree(kstr);
+    }
+    return OSUnserializeXML;
+}
+
+uint32_t OSDictionary_ItemCount(uint64_t OSDictionary) {
+    uint32_t OSDictionary_ItemCount = 0;
+    if (OSDictionary != 0) {
+        OSDictionary_ItemCount = ReadKernel32(OSDictionary + 20);
+    }
+    return OSDictionary_ItemCount;
+}
+
+uint64_t OSDictionary_ItemBuffer(uint64_t OSDictionary) {
+    uint64_t OSDictionary_ItemBuffer = 0;
+    if (OSDictionary != 0) {
+        OSDictionary_ItemBuffer = ReadKernel64(OSDictionary + 32);
+    }
+    return OSDictionary_ItemBuffer;
+}
+
+uint32_t OSArray_ItemCount(uint64_t OSArray) {
+    uint32_t OSArray_ItemCount = 0;
+    if (OSArray != 0) {
+        OSArray_ItemCount = ReadKernel32(OSArray + 0x14);
+    }
+    return OSArray_ItemCount;
+}
+
+uint64_t OSArray_ItemBuffer(uint64_t OSArray) {
+    uint64_t OSArray_ItemBuffer = 0;
+    if (OSArray != 0) {
+        OSArray_ItemBuffer = ReadKernel64(OSArray + 32);
+    }
+    return OSArray_ItemBuffer;
+}
+
+void OSObject_Release(uint64_t OSObject) {
+    uint64_t function = OSObjectFunc(OSObject, off_OSObject_Release);
+    if (function != 0) {
+        kexecute2(function, OSObject, 0, 0, 0, 0, 0, 0);
+    }
+}
+
+bool OSDictionary_Merge(uint64_t OSDictionary, uint64_t OSDictionary2) {
+    bool OSDictionary_Merge = false;
+    uint64_t function = OSObjectFunc(OSDictionary, off_OSDictionary_Merge);
+    if (function != 0) {
+        OSDictionary_Merge = (bool)kexecute2(function, OSDictionary, OSDictionary2, 0, 0, 0, 0, 0);
+    }
+    return OSDictionary_Merge;
+}
+
+bool OSArray_Merge(uint64_t OSArray, uint64_t OSArray2) {
+    bool OSArray_Merge = false;
+    uint64_t function = OSObjectFunc(OSArray, off_OSArray_Merge);
+    if (function != 0) {
+        OSArray_Merge = (bool)kexecute2(function, OSArray, OSArray2, 0, 0, 0, 0, 0);
+    }
+    return OSArray_Merge;
+}
+
 
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void set_csflags(uint64_t proc) {
-    uint32_t csflags = rk32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS));
-    fprintf(stderr, "[jelbrekd] Previous CSFlags: 0x%x\n", csflags);
-    csflags = (csflags | CS_PLATFORM_BINARY | CS_INSTALLER | CS_GET_TASK_ALLOW | CS_DEBUGGED) & ~(CS_RESTRICT | CS_HARD | CS_KILL);
-    fprintf(stderr, "[jelbrekd] New CSFlags: 0x%x\n", csflags);
-    WriteKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS), csflags);
-}
+void set_platform_binary(uint64_t proc, bool set)
+{
+    uint64_t task_struct_addr = ReadKernel64(proc + koffset(KSTRUCT_OFFSET_PROC_TASK));
+    fprintf(stderr, "task_struct_addr = " ADDR, task_struct_addr);
 
-
-void set_tfplatform(uint64_t proc) {
-    // task.t_flags & TF_PLATFORM
-    //0x10 = off_task
-    //0x390 = KSTRUCT_OFFSET_TASK_TFLAGS
-    uint64_t task = rk64(proc + off_task);
-    
-    uint32_t t_flags = ReadKernel32(task + koffset(KSTRUCT_OFFSET_TASK_TFLAGS));
-    
-    fprintf(stderr, "[jelbrekd] Old t_flags: 0x%x\n", t_flags);
-    
-    WriteKernel32(task + koffset(KSTRUCT_OFFSET_TASK_TFLAGS), t_flags | 0x400);
-    
-    fprintf(stderr, "[jelbrekd] New t_flags: 0x%x\n", t_flags);
-    
+    uint32_t task_t_flags = ReadKernel32(task_struct_addr + koffset(KSTRUCT_OFFSET_TASK_TFLAGS));
+    if (set) {
+        task_t_flags |= TF_PLATFORM;
+    } else {
+        task_t_flags &= ~(TF_PLATFORM);
+    }
+    WriteKernel32(task_struct_addr + koffset(KSTRUCT_OFFSET_TASK_TFLAGS), task_t_flags);
 }
 
 
 
-const char* abs_path_exceptions[] = {
-    "/Library/",
+const char *abs_path_exceptions[] = {
+    "/Library",
     "/private/var/mobile/Library",
-    "/private/var/mnt/",
-    "/System/Library/Caches/",
+    "/System/Library/Caches",
+    "/private/var/mnt",
     NULL
 };
 
 
 
-static const char *exc_key = "com.apple.security.exception.files.absolute-path.read-only";
-void set_sandbox_extensions(uint64_t proc) {
-    fprintf(stderr, "[jelbrekd] Set sandbox called for proc: %llx\n", proc);
-    
-    uint64_t proc_ucred = ReadKernel64(proc + off_p_ucred);
-    uint64_t sandbox = ReadKernel64(ReadKernel64(proc_ucred + 0x78) + 0x10);
-    
-    if (sandbox == 0)
-    {
-        fprintf(stderr, "[jelbrekd] No sandbox for proc: %llx\n", proc);
-        return;
-    }
-    
-    if (has_file_extension(sandbox, abs_path_exceptions[0]))
-    {
-        fprintf(stderr, "[jelbrekd] Path Exceptions Already Exist For Proc: %llx\n", proc);
-        return;
-    }
-    
-    uint64_t ext = 0;
-    const char** path = abs_path_exceptions;
-    while (*path != NULL)
-    {
-        ext = extension_create_file(*path, ext);
-        if (ext == 0) {
-            fprintf(stderr, "extension_create_file(%s) failed, panic!", *path);
-        }
-        path = path + 1;
-    }
-    
-    if (ext != 0)
-    {
-        extension_add(ext, sandbox, exc_key);
-    }
-}
-
-void set_csblob(uint64_t proc) {
-    uint64_t textvp = rk64(proc + off_p_textvp); //vnode of executable
-    off_t textoff = rk64(proc + off_p_textoff);
-    
-    
-    fprintf(stderr, "[jelbrekd] __TEXT at 0x%llx. Offset: 0x%llx\n", textvp, textoff);
-    
-    if (textvp != 0){
-        uint32_t vnode_type_tag = rk32(textvp + off_v_type);
-        uint16_t vnode_type = vnode_type_tag & 0xffff;
-        uint16_t vnode_tag = (vnode_type_tag >> 16);
-        
-        fprintf(stderr,"[jelbrekd] VNode Type: 0x%x. Tag: 0x%x.\n", vnode_type, vnode_tag);
-        
-        
-        if (vnode_type == 1){
-            uint64_t ubcinfo = rk64(textvp + off_v_ubcinfo);
-            
-           fprintf(stderr,"[jelbrekd] UBCInfo at 0x%llx.\n", ubcinfo);
-            
-            
-            uint64_t csblobs = rk64(ubcinfo + off_ubcinfo_csblobs);
-            while (csblobs != 0){
-                
-                fprintf(stderr,"[jelbrekd] CSBlobs at 0x%llx.\n", csblobs);
-                
-                
-                cpu_type_t csblob_cputype = rk32(csblobs + off_csb_cputype);
-                unsigned int csblob_flags = rk32(csblobs + off_csb_flags);
-                off_t csb_base_offset = rk64(csblobs + off_csb_base_offset);
-                uint64_t csb_entitlements = rk64(csblobs + off_csb_entitlements_offset);
-                unsigned int csb_signer_type = rk32(csblobs + off_csb_signer_type);
-                unsigned int csb_platform_binary = rk32(csblobs + off_csb_platform_binary);
-                unsigned int csb_platform_path = rk32(csblobs + off_csb_platform_path);
-                
-                
-                fprintf(stderr,"[jelbrekd] CSBlob CPU Type: 0x%x. Flags: 0x%x. Offset: 0x%llx\n", csblob_cputype, csblob_flags, csb_base_offset);
-                fprintf(stderr,"[jelbrekd] CSBlob Signer Type: 0x%x. Platform Binary: %d Path: %d\n", csb_signer_type, csb_platform_binary, csb_platform_path);
-                
-                wk32(csblobs + off_csb_platform_binary, 1);
-                
-                csb_platform_binary = rk32(csblobs + off_csb_platform_binary);
-                
-                fprintf(stderr,"[jelbrekd] CSBlob Signer Type: 0x%x. Platform Binary: %d Path: %d\n", csb_signer_type, csb_platform_binary, csb_platform_path);
-                
-                fprintf(stderr,"[jelbrekd] Entitlements at 0x%llx.\n", csb_entitlements);
-                
-                csblobs = rk64(csblobs);
-            }
-        }
-    }
-}
-
-
-//TheGoodShit
-
-uint64_t get_exception_osarray(void) {
-    static uint64_t cached = 0;
-    
-    if (cached == 0) {
-        // XXX use abs_path_exceptions
-        cached = OSUnserializeXML("<array>"
-                                  "<string>/Library/</string>"
-                                  "<string>/private/var/mobile/Library/</string>"
-                                  "<string>/private/var/mnt/</string>"
-                                  "<string>/System/Library/Caches/</string>"
-                                  "</array>");
-    }
-    
-    return cached;
-}
-
-
-
-void set_amfi_entitlements(uint64_t proc) {
-    // AMFI entitlements
-    
-    
-    uint64_t proc_ucred = rk64(proc+0xf8);
-    uint64_t amfi_entitlements = rk64(rk64(proc_ucred+0x78)+0x8);
-    
-    fprintf(stderr, "[jelbrekd] Setting Entitlements...\n");
-    
-    
-    OSDictionary_SetItem(amfi_entitlements, "get-task-allow", get_os_boolean_true());
-    OSDictionary_SetItem(amfi_entitlements, "com.apple.private.skip-library-validation", get_os_boolean_true());
-                         
-                         uint64_t present = OSDictionary_GetItem(amfi_entitlements, exc_key);
-                         
-                         int rv = 0;
-                         
-                         if (present == 0) {
-                             rv = OSDictionary_SetItem(amfi_entitlements, exc_key, get_exception_osarray());
-                         } else if (present != get_exception_osarray()) {
-                             unsigned int itemCount = OSArray_ItemCount(present);
-                             
-                             fprintf(stderr, "[jelbrekd] present != 0 (0x%llx)! item count: %d\n", present, itemCount);
-                             
-                             bool foundEntitlements = false;
-                             
-                             uint64_t itemBuffer = OSArray_ItemBuffer(present);
-                             
-                             for (int i = 0; i < itemCount; i++){
-                                 uint64_t item = rk64(itemBuffer + (i * sizeof(void *)));
-                                 fprintf(stderr, "[jelbrekd] Item %d: 0x%llx", i, item);
-                                 char *entitlementString = OSString_CopyString(item);
-                                 if (strstr(entitlementString, "/Library/") != 0) {
-                                     foundEntitlements = true;
-                                     free(entitlementString);
-                                     break;
-                                 }
-                                 free(entitlementString);
-                             }
-                             
-                             if (!foundEntitlements){
-                                 rv = OSArray_Merge(present, get_exception_osarray());
-                             } else {
-                                 rv = 1;
-                             }
-                         } else {
-                             fprintf(stderr, "[jelbrekd] Not going to merge array with itself :P\n");
-                             rv = 1;
-                         }
-                         
-                         if (rv != 1) {
-                            fprintf(stderr, "[jelbrekd] Setting exc FAILED! amfi_entitlements: 0x%llx present: 0x%llx\n", amfi_entitlements, present);
-                         }
-}
-//
 
 void unsandbox(uint64_t proc) {
     fprintf(stderr, "[jelbrekd] Unsandboxed proc 0x%llx\n", proc);
@@ -502,20 +471,210 @@ void unsandbox(uint64_t proc) {
 }
 
 
-void set_csflags3(uint64_t proc) {
+void set_csflags(uint64_t proc, uint32_t flags, bool value) {
     uint32_t csflags = ReadKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS));
-    csflags = (csflags | CS_PLATFORM_BINARY | CS_INSTALLER | CS_GET_TASK_ALLOW | CS_DEBUGGED) & ~(CS_RESTRICT | CS_HARD | CS_KILL);
+    if (value == true) {
+        csflags |= flags;
+    } else {
+        csflags &= ~flags;
+    }
     WriteKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS), csflags);
 }
 
-void set_csflags2(uint64_t proc, uint32_t flags) {
-    uint32_t csflags = ReadKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS));
-    csflags |= flags;
-    WriteKernel32(proc + koffset(KSTRUCT_OFFSET_PROC_P_CSFLAGS), csflags);
+
+uint64_t get_amfi_entitlements(uint64_t cr_label) {
+    uint64_t amfi_entitlements = 0;
+    amfi_entitlements = ReadKernel64(cr_label + 0x8);
+    return amfi_entitlements;
 }
 
-void set_cs_platform_binary(uint64_t proc) {
-    set_csflags2(proc, CS_PLATFORM_BINARY);
+uint64_t get_sandbox(uint64_t cr_label) {
+    uint64_t sandbox = 0;
+    sandbox = ReadKernel64(cr_label + 0x8 + 0x8);
+    return sandbox;
+}
+
+void set_cs(uint64_t proc)
+{
+    set_csflags(proc, CS_PLATFORM_BINARY, true);
+    set_csflags(proc, CS_REQUIRE_LV, false);
+    set_csflags(proc, CS_CHECK_EXPIRATION, false);
+    set_csflags(proc, CS_DYLD_PLATFORM, true);
+    set_csflags(proc, CS_GET_TASK_ALLOW, true);
+    set_csflags(proc, CS_INSTALLER, true);
+    set_csflags(proc, CS_RESTRICT, false);
+    set_csflags(proc, CS_DEBUGGED, true);
+    set_csflags(proc, CS_HARD, false);
+    set_csflags(proc, CS_KILL, false);
+}
+
+bool entitleProcess(uint64_t amfi_entitlements, const char *key, uint64_t val) {
+    bool entitleProcess = false;
+    if (amfi_entitlements != 0) {
+        if (OSDictionary_GetItem(amfi_entitlements, key) != val) {
+            entitleProcess = OSDictionary_SetItem(amfi_entitlements, key, val);
+        }
+    } else {
+        fprintf(stderr, "[jelbrekd] ERROR GETTING AMFI!\n");
+    }
+    return entitleProcess;
+}
+
+
+int extension_create_file(uint64_t saveto, uint64_t sb, const char *path, size_t path_len, uint32_t subtype) {
+    int extension_create_file = -1;
+    uint64_t kstr = kstralloc(path);
+    if (kstr != 0) {
+        extension_create_file = (int)kexecute2(get_ext_create(), saveto, sb, kstr, (uint64_t)path_len, (uint64_t)subtype, 0, 0);
+        kstrfree(kstr);
+    }
+    return extension_create_file;
+}
+
+int extension_add(uint64_t ext, uint64_t sb, const char *desc) {
+    int extension_add = -1;
+    uint64_t kstr = kstralloc(desc);
+    if (kstr != 0) {
+        extension_add = (int)kexecute2(get_ext_add(), ext, sb, kstr, 0, 0, 0, 0);
+        kstrfree(kstr);
+    }
+    return extension_add;
+}
+
+void extension_release(uint64_t ext) {
+    kexecute2(get_ext_rel(), ext, 0, 0, 0, 0, 0, 0);
+}
+
+uint64_t smalloc(size_t size) {
+    uint64_t smalloc = kexecute2(get_smalloc(), (uint64_t)size, 0, 0, 0, 0, 0, 0);
+    smalloc = zm_fix_addr(smalloc);
+    return smalloc;
+}
+
+bool set_file_extension(uint64_t sandbox, const char *exc_key, const char *path) {
+    bool set_file_extension = false;
+    if (sandbox != 0) {
+        uint64_t ext = smalloc(SIZEOF_STRUCT_EXTENSION);
+        if (ext != 0) {
+            int ret_extension_create_file = extension_create_file(ext, sandbox, path, strlen(path) + 1, 0);
+            if (ret_extension_create_file == 0) {
+                int ret_extension_add = extension_add(ext, sandbox, exc_key);
+                if (ret_extension_add == 0) {
+                    set_file_extension = true;
+                }
+            }
+            extension_release(ext);
+        }
+    } else {
+        set_file_extension = true;
+    }
+    return set_file_extension;
+}
+
+uint64_t get_exception_osarray(const char **exceptions) {
+    uint64_t exception_osarray = 0;
+    size_t xmlsize = 0x1000;
+    size_t len=0;
+    ssize_t written=0;
+    char *ents = malloc(xmlsize);
+    if (!ents) {
+        return 0;
+    }
+    size_t xmlused = sprintf(ents, "<array>");
+    for (const char **exception = exceptions; *exception; exception++) {
+        len = strlen(*exception);
+        len += strlen("<string></string>");
+        while (xmlused + len >= xmlsize) {
+            xmlsize += 0x1000;
+            ents = reallocf(ents, xmlsize);
+            if (!ents) {
+                return 0;
+            }
+        }
+        written = sprintf(ents + xmlused, "<string>%s/</string>", *exception);
+        if (written < 0) {
+            SafeFreeNULL(ents);
+            return 0;
+        }
+        xmlused += written;
+    }
+    len = strlen("</array>");
+    if (xmlused + len >= xmlsize) {
+        xmlsize += len;
+        ents = reallocf(ents, xmlsize);
+        if (!ents) {
+            return 0;
+        }
+    }
+    written = sprintf(ents + xmlused, "</array>");
+    
+    exception_osarray = OSUnserializeXML(ents);
+    SafeFreeNULL(ents);
+    return exception_osarray;
+}
+
+
+
+
+
+char **copy_amfi_entitlements(uint64_t present) {
+    unsigned int itemCount = OSArray_ItemCount(present);
+    uint64_t itemBuffer = OSArray_ItemBuffer(present);
+    size_t bufferSize = 0x1000;
+    size_t bufferUsed = 0;
+    size_t arraySize = (itemCount + 1) * sizeof(char *);
+    char **entitlements = malloc(arraySize + bufferSize);
+    if (!entitlements) {
+        return NULL;
+    }
+    entitlements[itemCount] = NULL;
+    
+    for (int i = 0; i < itemCount; i++) {
+        uint64_t item = ReadKernel64(itemBuffer + (i * sizeof(void *)));
+        char *entitlementString = OSString_CopyString(item);
+        if (!entitlementString) {
+            SafeFreeNULL(entitlements);
+            return NULL;
+        }
+        size_t len = strlen(entitlementString) + 1;
+        while (bufferUsed + len > bufferSize) {
+            bufferSize += 0x1000;
+            entitlements = realloc(entitlements, arraySize + bufferSize);
+            if (!entitlements) {
+                SafeFreeNULL(entitlementString);
+                return NULL;
+            }
+        }
+        entitlements[i] = (char*)entitlements + arraySize + bufferUsed;
+        strcpy(entitlements[i], entitlementString);
+        bufferUsed += len;
+        SafeFreeNULL(entitlementString);
+    }
+    return entitlements;
+}
+
+
+void set_amfi_ents(uint64_t proc)
+{
+    uint64_t proc_ucred = ReadKernel64(proc + koffset(KSTRUCT_OFFSET_PROC_UCRED));
+    uint64_t cr_label = ReadKernel64(proc_ucred + koffset(KSTRUCT_OFFSET_UCRED_CR_LABEL));
+    
+    if (cr_label != 0)
+    {
+        uint64_t amfi_entitlements = get_amfi_entitlements(cr_label);
+        
+        fprintf(stderr, "AMFI 0x%llx", amfi_entitlements);
+        
+        if (entitleProcess(amfi_entitlements, "com.apple.private.skip-library-validation", get_os_boolean_true()))
+        {
+            fprintf(stderr, "[jelbrekd] com.apple.private.skip-library-validation [OK]\n");
+        }
+        if (entitleProcess(amfi_entitlements, "get-task-allow", get_os_boolean_true()))
+        {
+            fprintf(stderr, "[jelbrekd] get-task-allow [OK]\n");
+        }
+        unsandbox(proc);
+    }
 }
 
 int setcsflagsandplatformize(int pid) {
@@ -527,11 +686,9 @@ int setcsflagsandplatformize(int pid) {
         fprintf(stderr, "Error Getting Proc!\n");
         return -1;
     } else {
-        set_tfplatform(proc);
-        set_csflags3(proc);
-        set_cs_platform_binary(proc);
-        set_amfi_entitlements(proc);
-        unsandbox(proc);
+        set_amfi_ents(proc);
+        set_platform_binary(proc, true);
+        set_cs(proc);
     }
     return -1;
 }
